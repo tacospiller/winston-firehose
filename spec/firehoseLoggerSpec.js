@@ -12,16 +12,18 @@ describe('firehose transport', function () {
     message = 'test message';
   });
 
-  it('sends message to firehose', function (done) {
+  it('sends message to firehose', function () {
     const transport = new FirehoseTransport({ firehose });
-    transport.send(message)
-    .then(() => {
-      expect(firehose.putRecord).toHaveBeenCalledTimes(1);
-      done();
-    })
-    .catch((ex) => {
-      fail(ex);
-      done();
+    transport.send(message);
+    expect(firehose.putRecord).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses right stream name', function () {
+    const transport = new FirehoseTransport({ firehose, streamName: 'test-firehose-stream' });
+    transport.send(message);
+    expect(firehose.putRecord).toHaveBeenCalledWith({
+      DeliveryStreamName: 'test-firehose-stream',
+      Record: jasmine.any(Object),
     });
   });
 
@@ -31,8 +33,35 @@ describe('firehose transport', function () {
         new FirehoseTransport({ level: 'info', firehose }),
       ],
     });
-
     logger.info(message);
     expect(firehose.putRecord).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses logger level', function () {
+    const transport = new FirehoseTransport({ firehose });
+    spyOn(transport, 'send');
+    const logger = winston.createLogger({
+      level: 'warn',
+      transports: [
+        transport,
+      ],
+    });
+    logger.info(message);
+    expect(transport.send).not.toHaveBeenCalled();
+    logger.warn(message);
+    expect(transport.send).toHaveBeenCalled();
+  });
+
+  it('uses logger format', function () {
+    const transport = new FirehoseTransport({ firehose });
+    spyOn(transport, 'send');
+    const logger = winston.createLogger({
+      format: winston.format.simple(),
+      transports: [
+        transport,
+      ],
+    });
+    logger.warn(message);
+    expect(transport.send).toHaveBeenCalledWith('warn: test message');
   });
 });
