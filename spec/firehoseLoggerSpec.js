@@ -1,34 +1,38 @@
 const winston = require('winston');
-const MockFireHoser = require('./support/mock-firehoser');
-const WFireHose = require('../src/index.js');
+const FirehoseTransport = require('../src/index.js');
 
-describe('firehose logger transport', function () {
-  beforeAll(function () {
-    this.m = new MockFireHoser('test-stream', {});
-    this.message = 'test message';
-    spyOn(this.m, 'send').and.callThrough();
+let firehose;
+let message;
+
+describe('firehose transport', function () {
+  beforeEach(function () {
+    firehose = {
+      putRecord: jasmine.createSpy().and.returnValue({ promise: () => Promise.resolve() }),
+    };
+    message = 'test message';
   });
 
-  it('logs a message', function (done) {
-    const { m, message } = this;
-    m.send(message)
-      .then(response => {
-        expect(response).toBe(message);
-        done();
-      })
-      .catch(done);
+  it('sends message to firehose', function (done) {
+    const transport = new FirehoseTransport({ firehose });
+    transport.send(message)
+    .then(() => {
+      expect(firehose.putRecord).toHaveBeenCalledTimes(1);
+      done();
+    })
+    .catch((ex) => {
+      fail(ex);
+      done();
+    });
   });
 
   it('affixes to winston', function () {
-    const { m, message } = this;
-    m.send.calls.reset();
     const logger = winston.createLogger({
       transports: [
-        new WFireHose({ firehoser: m }),
+        new FirehoseTransport({ level: 'info', firehose }),
       ],
     });
 
     logger.info(message);
-    expect(m.send).toHaveBeenCalled();
+    expect(firehose.putRecord).toHaveBeenCalledTimes(1);
   });
 });
